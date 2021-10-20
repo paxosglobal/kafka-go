@@ -45,7 +45,7 @@ func TestAwsMskIamMechanism(t *testing.T) {
 		"version":             "2020_10_22",
 		"action":              "kafka-cluster:Connect",
 		"host":                "localhost",
-		"user-agent":          signingUserAgent,
+		"user-agent":          signUserAgent,
 		"x-amz-algorithm":     "AWS4-HMAC-SHA256",
 		"x-amz-credential":    "ACCESS_KEY/20211014/us-east-1/kafka-cluster/aws4_request",
 		"x-amz-date":          "20211014T130500Z",

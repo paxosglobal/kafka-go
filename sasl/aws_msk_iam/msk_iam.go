@@ -14,32 +14,33 @@ import (
 )
 
 const (
-	signVersion = "2020_10_22" // this version is specified in the java version and is required to be this value
-	signService = "kafka-cluster"
-	signAction  = "kafka-cluster:Connect"
-	signExpiry  = 5 * time.Minute
-
+	// These constants come from https://github.com/aws/aws-msk-iam-auth#details and
+	// https://github.com/aws/aws-msk-iam-auth/blob/main/src/main/java/software/amazon/msk/auth/iam/internals/AWS4SignedPayloadGenerator.java.
+	signVersion      = "2020_10_22"
+	signService      = "kafka-cluster"
+	signAction       = "kafka-cluster:Connect"
 	signVersionKey   = "version"
 	signHostKey      = "host"
 	signUserAgentKey = "user-agent"
 	signActionKey    = "action"
+	queryActionKey   = "Action"
 
-	queryActionKey = "Action"
+	defaultSignExpiry = 5 * time.Minute
 )
 
-var signingUserAgent = fmt.Sprintf("kafka-go/aws_msk_iam/%s", runtime.Version())
+var signUserAgent = fmt.Sprintf("kafka-go/sasl/aws_msk_iam/%s", runtime.Version())
 
 // Mechanism implements sasl.Mechanism for the AWS_MSK_IAM mechanism, based on the official java implementation:
 // https://github.com/aws/aws-msk-iam-auth
 type Mechanism struct {
 	Signer *sigv4.Signer
-	// The host of the kafka broker to connect to
+	// The host of the kafka broker to connect to.
 	BrokerHost string
-	// The region where the msk cluster is hosted
+	// The region where the msk cluster is hosted.
 	AwsRegion string
-	// The time the request is planned for. Defaults to time.Now() at time of authentication
+	// The time the request is planned for. Defaults to time.Now() at time of authentication.
 	SignTime time.Time
-	// The duration for which the presigned-request is active. Defaults to 15 minutes
+	// The duration for which the presigned-request is active. Defaults to 15 minutes.
 	Expiry time.Duration
 }
 
@@ -49,7 +50,7 @@ func NewMechanism(brokerHost, awsRegion string, creds *credentials.Credentials) 
 		BrokerHost: brokerHost,
 		AwsRegion:  awsRegion,
 		Signer:     sigv4.NewSigner(creds),
-		Expiry:     signExpiry,
+		Expiry:     defaultSignExpiry,
 	}
 }
 
@@ -60,7 +61,7 @@ func (m *Mechanism) Name() string {
 // Start produces the authentication values required for AWS_MSK_IAM. It produces the following json as a byte array,
 // making use of the aws-sdk to produce the signed output.
 //{
-//	"version" : "<signVersion>",
+//	"version" : "2020_10_22",
 //	"host" : "<broker address>",
 //	"user-agent": "<user agent string from the client>",
 //	"action": "kafka-cluster:Connect",
@@ -73,19 +74,14 @@ func (m *Mechanism) Name() string {
 //	"x-amz-signature" : "<AWS SigV4 signature computed by the client>"
 //}
 func (m *Mechanism) Start(ctx context.Context) (sess sasl.StateMachine, ir []byte, err error) {
-	// the trailing slash and protocol are necessary here
-	// the v4.Signer will take the host and the path from the url
-	// the host  will be the broker host, and the path will be "/"
-	url := fmt.Sprintf("kafka://%s/", m.BrokerHost)
+	// The trailing slash and protocol are necessary here.
+	// The sigv4.Signer will take the host and the path from the url.
+	// The host will be the broker host, and the path will be "/".
+	url := fmt.Sprintf("kafka://%s/?%s=%s", m.BrokerHost, queryActionKey, signAction)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Add the Action to the query, ahead of signing
-	query := req.URL.Query()
-	query.Add(queryActionKey, signAction)
-	req.URL.RawQuery = query.Encode()
 
 	signTime := m.SignTime
 	if signTime.IsZero() {
@@ -99,9 +95,10 @@ func (m *Mechanism) Start(ctx context.Context) (sess sasl.StateMachine, ir []byt
 	signedMap := map[string]string{
 		signVersionKey:   signVersion,
 		signHostKey:      m.BrokerHost,
-		signUserAgentKey: signingUserAgent,
+		signUserAgentKey: signUserAgent,
 		signActionKey:    signAction,
 	}
+	// The protocol requires lowercase keys.
 	for key, vals := range header {
 		signedMap[strings.ToLower(key)] = vals[0]
 	}
@@ -118,7 +115,7 @@ func (m *Mechanism) Start(ctx context.Context) (sess sasl.StateMachine, ir []byt
 
 func (m *Mechanism) Next(ctx context.Context, challenge []byte) (bool, []byte, error) {
 	// After the initial step, the authentication is complete
-	// kafka will return error if it rejected the credentials, so we'd only
+	// kafka will return error if it rejected the credentials, so we'll only
 	// arrive here on success.
 	return true, nil, nil
 }
