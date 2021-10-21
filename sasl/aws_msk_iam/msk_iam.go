@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	sigv4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/segmentio/kafka-go/sasl"
 	"net/http"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	sigv4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/segmentio/kafka-go/sasl"
 )
 
 const (

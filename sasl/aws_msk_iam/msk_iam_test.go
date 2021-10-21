@@ -3,10 +3,11 @@ package aws_msk_iam
 import (
 	"context"
 	"encoding/json"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws/credentials"
 )
 
 const (
